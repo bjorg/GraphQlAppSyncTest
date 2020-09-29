@@ -1,0 +1,98 @@
+@*
+ * Default index page
+ *@
+
+@page "/"
+
+@using System.Text.Json
+@using GraphQL.Client.Http
+@using GraphQL.Client.Serializer.SystemTextJson
+
+<Container Fluid="true">
+    <Row>
+        <Column>
+            <Card Margin="Margin.Is4.FromTop">
+                <CardHeader Padding="Padding.Is1.FromBottom">
+                    <Heading Size="HeadingSize.Is4">GraphQL Tests</Heading>
+                </CardHeader>
+                <CardBody>
+                    <pre>@_result</pre>
+                </CardBody>
+                <CardBody>
+                    <Button Color="Color.Primary" @onclick="OnQueryAsync">Query</Button>
+                    <Button Color="Color.Secondary" @onclick="OnSubscribe">Subscribe</Button>
+                </CardBody>
+            </Card>
+        </Column>
+    </Row>
+</Container>
+
+
+@code {
+
+    //--- Types ---
+    public class GetMyModelTypeResponse {
+
+        //--- Properties ---
+        public Movie getMyModelType { get; set; }
+    }
+
+    public class OnCreateMyModelType {
+
+        //--- Properties ---
+        public Movie onCreateMyModelType { get; set; }
+    }
+
+    public class Movie {
+
+        //--- Properties ---
+        public string id { get; set; }
+        public string title { get; set; }
+    }
+
+    //--- Fields ---
+    private GraphQL.Client.Http.GraphQLHttpClient _graphQlClient;
+    private string _result = "";
+
+    //--- Methods ---
+    protected override void OnInitialized() {
+        var options = new GraphQLHttpClientOptions().ConfigureAppSync(Program.AppSyncUrl, Program.AppSyncApiKey);
+        _graphQlClient = new GraphQLHttpClient(options, new SystemTextJsonSerializer());
+    }
+
+    private async Task OnQueryAsync() {
+        var response = await _graphQlClient.SendQueryAsync<GetMyModelTypeResponse>(new GraphQLRequest {
+            Query = @"
+                query MyQuery($id: ID!) {
+                    getMyModelType(id: $id) {
+                        id
+                        title
+                    }
+                }
+            ",
+            OperationName = "MyQuery",
+            Variables = new {
+                id = "foo"
+            }
+        });
+        _result += "Query: " + JsonSerializer.Serialize(response.Data) + "\n";
+    }
+
+    private void OnSubscribe() {
+        _result += "Subscribed to onCreateMyModelType\n";
+        _graphQlClient.CreateSubscriptionStream<OnCreateMyModelType>(new GraphQLRequest {
+            Query = @"
+                subscription {
+                    onCreateMyModelType {
+                        __typename
+                        id
+                        title
+                    }
+                }
+            "
+        }).Subscribe(create => {
+            _result += "Notification: " + JsonSerializer.Serialize(create) + "\n";
+            StateHasChanged();
+        });
+    }
+}
